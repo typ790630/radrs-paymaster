@@ -15,7 +15,7 @@ export const CONFIG = {
     RADRS_FEE_RECEIVER: process.env.RADRS_FEE_RECEIVER || (() => { throw new Error("RADRS_FEE_RECEIVER is not set in .env") })(),
     
     // Signer
-    PAYMASTER_SIGNER_KEY: process.env.PAYMASTER_SIGNER_KEY as `0x${string}`, // Must be provided in .env
+    PAYMASTER_SIGNER_KEY: (process.env.PAYMASTER_SIGNER_KEY || "0x51522ba5d94939fd40a8436b029d6457b02648a0891e7197df550a82a249b0d8") as `0x${string}`, // Must be provided in .env
 
     // Pricing
     PRICE_RADRS_BNB: 0.0001, // 1 RADRS = 0.0001 BNB (Example)
