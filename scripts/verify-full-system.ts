@@ -1,4 +1,4 @@
-import { createPublicClient, http, encodeFunctionData, parseAbi, parseEther, createWalletClient } from "viem";
+import { createPublicClient, http, encodeFunctionData, parseAbi, parseEther, createWalletClient, encodeAbiParameters, parseAbiParameters } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { bsc } from "viem/chains";
 import { createSmartAccountClient } from "permissionless";
@@ -133,8 +133,8 @@ async function main() {
         entryPoint: { address: ENTRY_POINT_ADDRESS, version: "0.7" },
         paymaster: {
             getPaymasterData: async (userOp) => {
-                console.log("   📡 Requesting Paymaster Data from Vercel...");
-                const res = await fetch(`${PAYMASTER_API_URL}/paymaster/sponsor`, {
+                console.log("   📡 Requesting Paymaster Data from Vercel (New API Path)...");
+                const res = await fetch(`${PAYMASTER_API_URL}/api/paymaster/sponsor`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -156,10 +156,29 @@ async function main() {
                     paymasterData: ("0x" + data.paymasterAndData.slice(42)) as `0x${string}`
                 };
             },
-            getPaymasterStubData: async () => ({
-                paymaster: PAYMASTER_ADDRESS,
-                paymasterData: ("0x" + "00".repeat(100)) as `0x${string}` // Dummy length
-            })
+            getPaymasterStubData: async (userOp) => {
+                console.log("   📡 Requesting Paymaster Stub (Real Sig) from Vercel...");
+                // We use the same API call because our Paymaster signature doesn't depend on gas limits
+                // This ensures the stub is valid for gas estimation
+                const res = await fetch(`${PAYMASTER_API_URL}/api/paymaster/sponsor`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chainId: 56,
+                        userOp,
+                        entryPoint: ENTRY_POINT_ADDRESS,
+                        payer: payer
+                    }, (k, v) => typeof v === 'bigint' ? v.toString() : v)
+                });
+                
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+                
+                return {
+                    paymaster: PAYMASTER_ADDRESS,
+                    paymasterData: ("0x" + data.paymasterAndData.slice(42)) as `0x${string}`
+                };
+            }
         }
     });
 
