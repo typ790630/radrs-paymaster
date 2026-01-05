@@ -182,6 +182,15 @@ app.post('/paymaster/quote', async (req, res) => {
     }
 });
 
+// POST /api/paymaster/sponsor (New path for compatibility)
+app.post('/api/paymaster/sponsor', async (req, res) => {
+    // Redirect logic or reuse the same handler
+    // For simplicity, I'll just call the handler directly if I refactor it, but here I will just forward the call logic.
+    // Actually, let's just alias the routes.
+    req.url = '/paymaster/sponsor';
+    app.handle(req, res);
+});
+
 // POST /paymaster/sponsor
 app.post('/paymaster/sponsor', async (req, res) => {
     try {
