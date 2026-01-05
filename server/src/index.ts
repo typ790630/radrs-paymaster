@@ -313,6 +313,11 @@ const handleSponsor = async (req: express.Request, res: express.Response) => {
 // POST /api/paymaster/sponsor (New path for compatibility)
 app.post('/api/paymaster/sponsor', handleSponsor);
 
+// GET /api/paymaster/sponsor (Health check for browser)
+app.get('/api/paymaster/sponsor', (req, res) => {
+    res.json({ status: "ok", route: "/api/paymaster/sponsor", method: "GET" });
+});
+
 // POST /paymaster/sponsor (Legacy path)
 app.post('/paymaster/sponsor', handleSponsor);
 
