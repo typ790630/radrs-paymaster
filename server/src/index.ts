@@ -182,17 +182,8 @@ app.post('/paymaster/quote', async (req, res) => {
     }
 });
 
-// POST /api/paymaster/sponsor (New path for compatibility)
-app.post('/api/paymaster/sponsor', async (req, res) => {
-    // Redirect logic or reuse the same handler
-    // For simplicity, I'll just call the handler directly if I refactor it, but here I will just forward the call logic.
-    // Actually, let's just alias the routes.
-    req.url = '/paymaster/sponsor';
-    app.handle(req, res);
-});
-
-// POST /paymaster/sponsor
-app.post('/paymaster/sponsor', async (req, res) => {
+// Handler for Sponsor Request
+const handleSponsor = async (req: express.Request, res: express.Response) => {
     try {
         const { chainId, userOp, entryPoint } = req.body; // userOp might need to be sanitized
 
@@ -317,7 +308,13 @@ app.post('/paymaster/sponsor', async (req, res) => {
         console.error("Sponsor Error:", error);
         res.status(500).json({ error: error.message });
     }
-});
+};
+
+// POST /api/paymaster/sponsor (New path for compatibility)
+app.post('/api/paymaster/sponsor', handleSponsor);
+
+// POST /paymaster/sponsor (Legacy path)
+app.post('/paymaster/sponsor', handleSponsor);
 
 app.listen(Number(CONFIG.PORT), '0.0.0.0', () => {
     console.log(`Paymaster Service running on port ${CONFIG.PORT} (0.0.0.0)`);
