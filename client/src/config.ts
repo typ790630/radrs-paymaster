@@ -22,11 +22,11 @@ console.log("[Config] Using Bundler:", BUNDLER_URL);
 
 // RadrsPaymaster Deployed Address (Verified)
 // FORCE HARDCODED ADDRESS TO AVOID CACHE ISSUES
-export const PAYMASTER_ADDRESS = "0x524DF114a1F4E0cefC7a8c29df7cc900458b3943"; // v7: Supports EOA Payment
+export const PAYMASTER_ADDRESS = "0x30B8333A8a283045869A6A81C95D688061A0a289"; // v8: Fixed AA33 + Supports EOA Payment
 
 // Backend API URL
 // Ensure this points to Vercel, NOT localhost
-export const PAYMASTER_API_URL = "https://sradr-dapp.vercel.app";
+export const PAYMASTER_API_URL = "https://radrs-paymaster.vercel.app";
 
 export const RADRS_TOKEN_ADDRESS = "0xe2188a2e0a41a50f09359e5fe714d5e643036f2a";
 

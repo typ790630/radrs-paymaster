@@ -92,6 +92,13 @@ contract RadrsPaymasterV2 is BasePaymaster {
         
         bytes calldata payload = userOp.paymasterAndData[52:];
         
+        // DEBUG: If payload length is small, it means we didn't receive correct data
+        if (payload.length < 32) {
+             // Just fail or return empty context
+             // This happens during initial estimation sometimes
+             return ("", _packValidationData(false, 0, 0));
+        }
+        
         (
             address feeToken,
             uint256 feeAmount,
