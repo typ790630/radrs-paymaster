@@ -9,7 +9,7 @@ dotenv.config();
 
 // Config
 const PAYMASTER_API_URL = "https://radrs-paymaster.vercel.app";
-const PAYMASTER_ADDRESS = "0x524DF114a1F4E0cefC7a8c29df7cc900458b3943"; // V2
+const PAYMASTER_ADDRESS = "0x30B8333A8a283045869A6A81C95D688061A0a289"; // V2 (Fixed)
 const RADRS_TOKEN_ADDRESS = "0xe2188A2E0a41A50F09359E5FE714D5e643036f2A";
 const ENTRY_POINT_ADDRESS = "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
 const BUNDLER_URL = "https://public.pimlico.io/v2/56/rpc"; // Public for test (Chain ID 56)

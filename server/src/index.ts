@@ -249,7 +249,7 @@ app.post('/paymaster/sponsor', async (req, res) => {
         const domain = {
             name: 'RadrsPaymasterV2', // Updated Name
             version: '1',
-            chainId: CONFIG.CHAIN_ID,
+            chainId: Number(CONFIG.CHAIN_ID),
             verifyingContract: CONFIG.PAYMASTER_ADDRESS as Hex,
         } as const;
 
