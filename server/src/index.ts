@@ -44,11 +44,11 @@ if (CONFIG.PAYMASTER_SIGNER_KEY) {
 function calculateFees(userOp: any) {
     const { callGasLimit, verificationGasLimit, preVerificationGas, maxFeePerGas } = userOp;
     
-    // Parse hex to bigint
-    const cgl = hexToBigInt(callGasLimit);
-    const vgl = hexToBigInt(verificationGasLimit);
-    const pvg = hexToBigInt(preVerificationGas);
-    const mfg = hexToBigInt(maxFeePerGas);
+    // Parse hex to bigint, defaulting to 0 if undefined (for stub/estimation)
+    const cgl = callGasLimit ? hexToBigInt(callGasLimit) : 0n;
+    const vgl = verificationGasLimit ? hexToBigInt(verificationGasLimit) : 0n;
+    const pvg = preVerificationGas ? hexToBigInt(preVerificationGas) : 0n;
+    const mfg = maxFeePerGas ? hexToBigInt(maxFeePerGas) : 0n;
 
     // Calculate estimated BNB cost
     // Total Gas Limit = call + verification + preVerification
