@@ -11,7 +11,7 @@ export const CONFIG = {
     // Addresses
     ENTRY_POINT_ADDRESS: "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
     RADRS_TOKEN_ADDRESS: "0xe2188a2e0a41a50f09359e5fe714d5e643036f2a",
-    PAYMASTER_ADDRESS: process.env.PAYMASTER_ADDRESS || "0x30B8333A8a283045869A6A81C95D688061A0a289", // V8 Address (Corrected)
+    PAYMASTER_ADDRESS: "0x30B8333A8a283045869A6A81C95D688061A0a289", // Hardcode V8 to ensure no env issues on Vercel
     RADRS_FEE_RECEIVER: process.env.RADRS_FEE_RECEIVER || (() => { throw new Error("RADRS_FEE_RECEIVER is not set in .env") })(),
     
     // Signer
