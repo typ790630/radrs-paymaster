@@ -7,7 +7,7 @@ dotenv.config();
 
 async function main() {
   const RPC_URL = "https://bsc-dataseed1.binance.org";
-  const PAYMASTER_ADDRESS = "0x1f29efB2d33BC425B3C4050804D55047d872A3dC";
+  const PAYMASTER_ADDRESS = "0x1d3E64c5a4fFfC4e46e70e22c33A1ddaD506c3Aa";
   
   // Data from the failed request in screenshot
   const SENDER = "0x9ADBbea6886A7DD09BF6Ddb26730F54772a3e946";

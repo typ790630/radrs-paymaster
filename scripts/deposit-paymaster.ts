@@ -7,7 +7,7 @@ async function main() {
   // Load env
   const RPC_URL = process.env.BSC_RPC_URL || "https://bsc-dataseed1.binance.org";
   const PRIVATE_KEY = process.env.PRIVATE_KEY;
-  const PAYMASTER_ADDRESS = process.env.PAYMASTER_ADDRESS; // The new one
+  const PAYMASTER_ADDRESS = "0x74A0d7235747D9Ae98BA1dB6f0306Bf57a14cb3A"; // V3
   const ENTRY_POINT_ADDRESS = process.env.ENTRY_POINT_ADDRESS || "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
 
   if (!PRIVATE_KEY) throw new Error("Missing PRIVATE_KEY in .env");

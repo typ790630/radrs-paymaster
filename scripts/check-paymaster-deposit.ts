@@ -3,7 +3,7 @@ import { createPublicClient, http, parseAbi } from "viem";
 import { bsc } from "viem/chains";
 
 const ENTRY_POINT_ADDRESS = "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
-const PAYMASTER_ADDRESS = "0x1f29efB2d33BC425B3C4050804D55047d872A3dC";
+const PAYMASTER_ADDRESS = "0x1d3E64c5a4fFfC4e46e70e22c33A1ddaD506c3Aa";
 
 async function main() {
     const client = createPublicClient({

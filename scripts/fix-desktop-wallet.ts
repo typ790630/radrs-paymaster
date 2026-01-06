@@ -52,8 +52,12 @@ function main() {
             new: "https://public.pimlico.io/v2/bsc-mainnet/rpc"
         },
         {
-            old: /0x7Be3A50B2a062a8dD1b24C0D77D0Cc8D8b19618A/g, // Old Paymaster
-            new: "0x1f29efB2d33BC425B3C4050804D55047d872A3dC"  // New Paymaster
+            old: /0x7Be3A50B2a062a8dD1b24C0D77D0Cc8D8b19618A/g, // V1 Paymaster
+            new: "0x1d3E64c5a4fFfC4e46e70e22c33A1ddaD506c3Aa"  // New Paymaster
+        },
+        {
+            old: /0x1f29efB2d33BC425B3C4050804D55047d872A3dC/g, // V2 (Failed Signer) Paymaster
+            new: "0x1d3E64c5a4fFfC4e46e70e22c33A1ddaD506c3Aa"
         },
         {
             old: /https:\/\/radrs-paymaster-backend\.vercel\.app\/api/g, // Old API

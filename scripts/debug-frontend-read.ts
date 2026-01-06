@@ -8,7 +8,7 @@ import { toSimpleSmartAccount } from "permissionless/accounts";
 // Config from client/src/config.ts
 const CHAIN = bsc;
 const BUNDLER_URL = "https://public.pimlico.io/v2/bsc-mainnet/rpc"; // Fixed URL
-const PAYMASTER_ADDRESS = "0x1f29efB2d33BC425B3C4050804D55047d872A3dC"; // Fixed Address
+const PAYMASTER_ADDRESS = "0x1d3E64c5a4fFfC4e46e70e22c33A1ddaD506c3Aa"; // Fixed Address
 const RADRS_TOKEN_ADDRESS = "0xe2188a2e0a41a50f09359e5fe714d5e643036f2a"; // Fixed Address (Checksummed)
 const ENTRY_POINT_ADDRESS = "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
 

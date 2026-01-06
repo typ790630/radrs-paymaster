@@ -14,46 +14,35 @@ async function main() {
   const provider = new ethers.JsonRpcProvider(RPC_URL);
   const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
   
-  console.log("Deploying contracts with the account:", wallet.address);
+  console.log("Deploying RadrsPaymasterV3 with the account:", wallet.address);
 
   const ENTRY_POINT = "0x0000000071727De22E5E9d8BAf0edAc6f37da032"; // BSC Mainnet
+  const RADRS_TOKEN = "0xe2188a2e0a41a50f09359e5fe714d5e643036f2a"; // RADRS Token
+  const FEE_COLLECTOR = "0xfb710006a8Ad08a636e919B02B2f9bBbcE524d96"; // Project Fee Collector
   
-  // We should REUSE the existing backend signer key if possible to avoid changing .env
-  // Or just generate a new one. The prompt implies we can update config.
-  // Let's reuse the one from .env if it exists, otherwise generate.
-  let signerAddress = "";
-  let signerKey = "";
-  
-  if (process.env.PAYMASTER_SIGNER_KEY) {
-      const existingSigner = new ethers.Wallet(process.env.PAYMASTER_SIGNER_KEY);
-      signerAddress = existingSigner.address;
-      signerKey = existingSigner.privateKey;
-      console.log("Using existing signer from .env:", signerAddress);
-  } else {
-      const backendSigner = ethers.Wallet.createRandom();
-      signerAddress = backendSigner.address;
-      signerKey = backendSigner.privateKey;
-      console.log("Generated NEW signer:", signerAddress);
-  }
+  // Use existing signer or generate new one? Let's generate a new one to be safe and output it.
+  const backendSigner = ethers.Wallet.createRandom();
   
   // Get Artifacts from Hardhat
-  const artifact = await hre.artifacts.readArtifact("RadrsPaymaster");
+  // Note: We need to compile first to get RadrsPaymasterV3 artifact
+  const artifact = await hre.artifacts.readArtifact("RadrsPaymasterV3");
   
   // Deploy
   const factory = new ethers.ContractFactory(artifact.abi, artifact.bytecode, wallet);
-  const paymaster = await factory.deploy(ENTRY_POINT, signerAddress);
+  const paymaster = await factory.deploy(ENTRY_POINT, backendSigner.address, RADRS_TOKEN, FEE_COLLECTOR);
 
   console.log("Waiting for deployment...");
   await paymaster.waitForDeployment();
 
   const paymasterAddress = await paymaster.getAddress();
 
-  console.log("\nDeployment Successful (v3 - with Custom Errors)!");
+  console.log("\nDeployment Successful!");
   console.log("----------------------------------------------------");
-  console.log(`PAYMASTER_SIGNER_KEY=${signerKey}`);
+  console.log(`PAYMASTER_SIGNER_KEY=${backendSigner.privateKey}`);
   console.log(`PAYMASTER_ADDRESS=${paymasterAddress}`);
+  console.log(`RADRS_FEE_COLLECTOR=${FEE_COLLECTOR}`);
   console.log("----------------------------------------------------");
-  console.log("IMPORTANT: Update your .env and client config with these values!");
+  console.log("Please update your .env file with these values!");
 }
 
 main().catch((error) => {

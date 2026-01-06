@@ -22,7 +22,7 @@ console.log("[Config] Using Bundler:", BUNDLER_URL);
 
 // RadrsPaymaster Deployed Address (Verified)
 // FORCE HARDCODED ADDRESS TO AVOID CACHE ISSUES
-export const PAYMASTER_ADDRESS = "0x30B8333A8a283045869A6A81C95D688061A0a289"; // v8: Fixed AA33 + Supports EOA Payment
+export const PAYMASTER_ADDRESS = "0x1d3E64c5a4fFfC4e46e70e22c33A1ddaD506c3Aa"; // v2: White-listed Approve
 
 // Backend API URL
 // Ensure this points to Vercel, NOT localhost

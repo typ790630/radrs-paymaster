@@ -56,7 +56,7 @@ async function main() {
         // Try to decode logs to see RADRS transfer
         console.log("\nChecking Logs for Paymaster Transfer...");
         const RADRS_TOKEN = "0xe2188A2E0a41A50F09359E5FE714D5e643036f2A";
-        const PAYMASTER = "0x1f29efB2d33BC425B3C4050804D55047d872A3dC";
+        const PAYMASTER = "0x1d3E64c5a4fFfC4e46e70e22c33A1ddaD506c3Aa";
         
         const transferLogs = txReceipt.logs.filter(log => 
             log.address.toLowerCase() === RADRS_TOKEN.toLowerCase()

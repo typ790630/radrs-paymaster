@@ -5,7 +5,7 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 const PRIVATE_KEY = process.env.PRIVATE_KEY || "";
-const PAYMASTER_ADDRESS = "0x7Be3A50B2a062a8dD1b24C0D77D0Cc8D8b19618A"; // New Paymaster Address (Markup 1.2x)
+const PAYMASTER_ADDRESS = "0x1d3E64c5a4fFfC4e46e70e22c33A1ddaD506c3Aa"; // New Paymaster Address
 const ENTRY_POINT_ADDRESS = "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
 
 async function main() {
@@ -26,9 +26,9 @@ async function main() {
     const entryPoint = new ethers.Contract(ENTRY_POINT_ADDRESS, entryPointAbi, wallet);
 
     // 3. Deposit funds to EntryPoint for Paymaster
-    const depositAmount = ethers.parseEther("0.02");
+    const depositAmount = ethers.parseEther("0.005");
 
-    console.log("Funding Paymaster with 0.02 BNB...");
+    console.log("Funding Paymaster with 0.005 BNB...");
     
     try {
         const tx = await entryPoint.depositTo(PAYMASTER_ADDRESS, { value: depositAmount });

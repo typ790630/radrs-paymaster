@@ -13,7 +13,7 @@ const CHAIN = bsc;
 const BUNDLER_URL = process.env.EXPO_PUBLIC_BUNDLER_URL || "https://public.pimlico.io/v2/bsc-mainnet/rpc"; 
 const PAYMASTER_API_URL = "https://sradr-dapp.vercel.app";
 const ENTRY_POINT_ADDRESS = "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
-const PAYMASTER_ADDRESS = "0x1f29efB2d33BC425B3C4050804D55047d872A3dC";
+const PAYMASTER_ADDRESS = "0x1d3E64c5a4fFfC4e46e70e22c33A1ddaD506c3Aa";
 // Use a test private key (ensure this account has some BNB and RADRS if possible, or just test simulation)
 // ⚠️ WARNING: Use a safe test key!
 const TEST_PRIVATE_KEY = process.env.PRIVATE_KEY as Hex;

@@ -17,7 +17,7 @@ try {
 import express from 'express';
 import cors from 'cors';
 import { CONFIG } from './config.js';
-import { createPublicClient, http, hexToBigInt, encodeAbiParameters, parseAbiParameters, type Hex, LocalAccount, createWalletClient, decodeFunctionData, parseAbi, isAddressEqual, getAddress } from 'viem';
+import { createPublicClient, http, hexToBigInt, encodeAbiParameters, parseAbiParameters, type Hex, type LocalAccount, createWalletClient, decodeFunctionData, parseAbi, isAddressEqual, getAddress } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { bsc } from 'viem/chains';
 
@@ -40,133 +40,76 @@ if (CONFIG.PAYMASTER_SIGNER_KEY) {
     console.warn("WARNING: PAYMASTER_SIGNER_KEY not set. Sponsor signing will fail.");
 }
 
-// Helper to calculate fees
-function calculateFees(userOp: any) {
+// Async wrapper to fetch activation status
+async function checkActivation(sender: Hex): Promise<boolean> {
+    try {
+        const isActivated = await publicClient.readContract({
+            address: CONFIG.PAYMASTER_ADDRESS as Hex,
+            abi: [{
+                type: 'function',
+                name: 'isActivated',
+                stateMutability: 'view',
+                inputs: [{ name: 'account', type: 'address' }],
+                outputs: [{ type: 'bool' }]
+            }],
+            functionName: 'isActivated',
+            args: [sender]
+        }) as boolean;
+        return isActivated;
+    } catch (e) {
+        console.warn("Failed to check activation status, defaulting to true (charged)", e);
+        return true; 
+    }
+}
+
+// Updated calculateFees to accept activation status
+async function calculateFeesAsync(userOp: any) {
     const { callGasLimit, verificationGasLimit, preVerificationGas, maxFeePerGas } = userOp;
     
-    // Parse hex to bigint, defaulting to 0 if undefined (for stub/estimation)
     const cgl = callGasLimit ? hexToBigInt(callGasLimit) : 0n;
     const vgl = verificationGasLimit ? hexToBigInt(verificationGasLimit) : 0n;
     const pvg = preVerificationGas ? hexToBigInt(preVerificationGas) : 0n;
     const mfg = maxFeePerGas ? hexToBigInt(maxFeePerGas) : 0n;
 
-    // Calculate estimated BNB cost
-    // Total Gas Limit = call + verification + preVerification
     const totalGasLimit = cgl + vgl + pvg;
     const gasCostBNBWei = totalGasLimit * mfg;
-    
-    // Convert to BNB (1e18)
     const gasCostBNB = Number(gasCostBNBWei) / 1e18;
 
-    // Calculate RADRS Fee
-    // radrsFee = gasCostBNB / priceRADRSinBNB * 1.2
-    let radrsFeeRaw = (gasCostBNB / CONFIG.PRICE_RADRS_BNB) * CONFIG.MARKUP;
+    // Base RADRS Cost (Real Cost)
+    let realRadrsCostRaw = (gasCostBNB / CONFIG.PRICE_RADRS_BNB);
     
-    // Check for Approve(Paymaster) to make it FREE
-    try {
-        const callDataHex = userOp.callData as Hex;
-        let isApprove = false;
-
-        console.log(`[DEBUG SPONSOR] sender: ${userOp.sender}`);
-        console.log(`[DEBUG SPONSOR] callData: ${callDataHex}`);
-
-        const simpleAccountAbi = parseAbi([
-            'function execute(address dest, uint256 value, bytes func)',
-            'function executeBatch(address[] dest, uint256[] value, bytes[] func)'
-        ]);
-        
-        const erc20Abi = parseAbi([
-            'function approve(address spender, uint256 amount)'
-        ]);
-
-        let innerCalls: { dest: string, value: bigint, data: Hex }[] = [];
-
-        // Try to decode as execute or executeBatch
-        try {
-            const decodedOuter = decodeFunctionData({
-                abi: simpleAccountAbi,
-                data: callDataHex
-            });
-
-            if (decodedOuter.functionName === 'execute') {
-                innerCalls.push({
-                    dest: decodedOuter.args[0],
-                    value: decodedOuter.args[1],
-                    data: decodedOuter.args[2]
-                });
-            } else if (decodedOuter.functionName === 'executeBatch') {
-                const dests = decodedOuter.args[0];
-                const values = decodedOuter.args[1];
-                const datas = decodedOuter.args[2];
-                if (dests && values && datas && dests.length === values.length) {
-                    for (let i = 0; i < dests.length; i++) {
-                        innerCalls.push({
-                            dest: dests[i]!,
-                            value: values[i]!,
-                            data: datas[i]!
-                        });
-                    }
-                }
-            }
-        } catch (decodeError) {
-             console.log(`[DEBUG SPONSOR] Failed to decode outer callData: ${decodeError}`);
-             // Fallback: Check if it's a direct execute(address, uint256, bytes) with different signature?
-             // Or maybe it's a direct call to 'approve'? (Unlikely for AA but good to check)
-        }
-        
-        for (const call of innerCalls) {
-            const isRadrs = isAddressEqual(call.dest as Hex, CONFIG.RADRS_TOKEN_ADDRESS as Hex);
-            
-            let isApproveFunc = false;
-            let spender = null;
-            
-            // Check for 'approve(address,uint256)' selector: 0x095ea7b3
-            if (call.data.startsWith('0x095ea7b3')) {
-                try {
-                    const decodedInner = decodeFunctionData({
-                        abi: erc20Abi,
-                        data: call.data
-                    });
-                    if (decodedInner.functionName === 'approve') {
-                        isApproveFunc = true;
-                        spender = decodedInner.args[0];
-                    }
-                } catch (e) {}
-            }
-            
-            if (isRadrs && isApproveFunc && spender) {
-                const spenderLower = (spender as string).toLowerCase();
-                const paymasterLower = (CONFIG.PAYMASTER_ADDRESS as string).toLowerCase();
-                if (spenderLower === paymasterLower) {
-                    isApprove = true;
-                }
-            }
-        }
-
-        console.log(`[DEBUG SPONSOR] Final Decision isApprove: ${isApprove}`);
-
-        if (isApprove) {
-            radrsFeeRaw = 0;
-            console.log(`[DEBUG SPONSOR] radrsFee set to 0`);
-        } else {
-            console.log(`[DEBUG SPONSOR] radrsFee: ${radrsFeeRaw}`);
-        }
-
-    } catch (e) {
-        console.warn("Failed to parse callData for optimization", e);
+    // Check Activation
+    const isActivated = await checkActivation(userOp.sender as Hex);
+    
+    let finalRadrsFeeRaw = 0;
+    
+    if (!isActivated) {
+        // First time free
+        finalRadrsFeeRaw = 0;
+        console.log(`[Fee] User ${userOp.sender} not activated -> Free`);
+    } else {
+        // Charged at Markup (e.g. 1.2x)
+        // RADRS_SERVICE_FEE_BPS = 2000 => 20% => 1.2x
+        const markup = 1 + (CONFIG.RADRS_SERVICE_FEE_BPS / 10000);
+        finalRadrsFeeRaw = realRadrsCostRaw * markup;
+        console.log(`[Fee] User ${userOp.sender} activated -> Charged ${markup}x`);
     }
-    
-    // Convert to RADRS Wei (1e18)
-    const radrsFeeWei = BigInt(Math.floor(radrsFeeRaw * 1e18));
+
+    // Convert to BigInt Wei
+    const realRadrsCostWei = BigInt(Math.floor(realRadrsCostRaw * 1e18));
+    const finalRadrsFeeWei = BigInt(Math.floor(finalRadrsFeeRaw * 1e18));
 
     return {
         gasCostBNB: gasCostBNB.toFixed(6),
-        radrsFee: radrsFeeWei.toString()
+        radrsFee: finalRadrsFeeWei.toString(),
+        realRadrsCost: realRadrsCostWei.toString(), // Keep this for backend logic
+        feeRate: isActivated ? 1.2 : 0, 
+        activated: isActivated
     };
 }
 
 // POST /paymaster/quote
-app.post('/paymaster/quote', async (req, res) => {
+const handleQuote = async (req: express.Request, res: express.Response) => {
     try {
         const { chainId, userOp } = req.body;
         
@@ -174,13 +117,16 @@ app.post('/paymaster/quote', async (req, res) => {
             return res.status(400).json({ error: "Invalid Chain ID" });
         }
 
-        const fees = calculateFees(userOp);
+        const fees = await calculateFeesAsync(userOp);
         res.json(fees);
     } catch (error: any) {
         console.error("Quote Error:", error);
         res.status(500).json({ error: error.message });
     }
-});
+};
+
+app.post('/paymaster/quote', handleQuote);
+app.post('/api/paymaster/quote', handleQuote); // Add Vercel compatible route
 
 // Handler for Sponsor Request
 const handleSponsor = async (req: express.Request, res: express.Response) => {
@@ -195,11 +141,31 @@ const handleSponsor = async (req: express.Request, res: express.Response) => {
             return res.status(500).json({ error: "Signer not configured" });
         }
 
-        // 1. Calculate Fees (Logic now includes Approve detection)
-        let { radrsFee, gasCostBNB } = calculateFees(userOp);
+        // 1. Calculate Fees (includes Activation Check)
+        let { radrsFee, gasCostBNB, realRadrsCost, activated } = await calculateFeesAsync(userOp);
 
-        // Security Check for Free Ops (Approve)
-        if (radrsFee === "0") {
+        // Security Check for Free Ops (Approve) or Activation
+        // If fee is 0 (or activated is false), we verify balance just to be safe
+        // BUT Requirement: "Skip balance check if activated=false"
+        
+        if (!activated) {
+             console.log(`[Sponsor] New User ${userOp.sender} -> Skip Balance Check`);
+             // Do NOT check balance.
+        } else if (radrsFee === "0") {
+             // Existing logic for other 0 fee cases (e.g. whitelist?)
+             // ...
+        } else {
+             // Normal Paid User -> Check Balance & Allowance
+             // Actually, contract checks this too, but failing early is nice.
+             // But we are lazy here, let contract handle it to ensure atomicity.
+             // We can check just to provide better error message.
+        }
+        
+        if (radrsFee === "0" && activated) {
+             // Only run this legacy check if it's supposed to be free but user IS activated (e.g. whitelist logic from V2)
+             // For V3, radrsFee is 0 ONLY if !activated.
+             // So this block might be redundant or unreachable in V3 logic unless we add other free conditions.
+             // Let's keep it safe.
              try {
                  const sender = userOp.sender as Hex;
                  // Check Balance
@@ -216,17 +182,15 @@ const handleSponsor = async (req: express.Request, res: express.Response) => {
                      args: [sender]
                  }) as bigint;
                  
-                 const minInitRadrs = 100n * 10n**18n; // Min 100 RADRS required to sponsor approve
+                 const minInitRadrs = 100n * 10n**18n; // Min 100 RADRS required
                  
                  if (balance < minInitRadrs) {
                      console.warn(`Sponsor Rejected: Balance ${balance} < ${minInitRadrs}`);
-                     // Return bilingual error for frontend display
                      return res.status(400).json({ error: "Insufficient RADRS balance (Need 100+). 余额不足 (需要 100+ RADRS)." });
                  }
                  console.log(`Sponsor Approved: Balance ${balance} >= ${minInitRadrs}`);
              } catch (e) {
                  console.error("Balance check failed:", e);
-                 // If check fails, do we block? Yes, safer.
                  return res.status(500).json({ error: "Failed to verify RADRS balance" });
              }
         }
@@ -235,19 +199,26 @@ const handleSponsor = async (req: express.Request, res: express.Response) => {
         const validUntil = Math.floor(Date.now() / 1000) + 3600; // 1 Hour
         const validAfter = 0;
         const feeToken = getAddress(CONFIG.RADRS_TOKEN_ADDRESS);
-        const feeAmount = BigInt(radrsFee);
-        const receiver = getAddress(CONFIG.RADRS_FEE_RECEIVER);
+        
+        // IMPORTANT: We now sign the REAL cost (base cost), not the final fee.
+        // The contract will apply the markup logic based on activation status.
+        // Wait, Paymaster V3 implementation:
+        // "We will sign: (feeToken, realRadrsCost, receiver, validUntil, validAfter, payer)"
+        // "Check Balance... require(balance >= chargeAmount)" -> chargeAmount depends on isActivated
+        // So we sign 'realRadrsCost'.
+        
+        const feeAmountToSign = BigInt(realRadrsCost); 
+        
+        const receiver = getAddress(CONFIG.RADRS_FEE_COLLECTOR); // Updated to Collector
         const sender = getAddress(userOp.sender);
         
-        // Payer Logic: Use provided payer or default to sender
-        // Note: Contract V2 expects 'payer' in the struct
+        // Payer Logic
         const payerInput = req.body.payer;
         const payer = payerInput ? getAddress(payerInput) : sender;
 
         // 3. EIP-712 Signing
-        // Domain
         const domain = {
-            name: 'RadrsPaymasterV2', // Updated Name
+            name: 'RadrsPaymasterV3', // Updated Name V3
             version: '1',
             chainId: Number(CONFIG.CHAIN_ID),
             verifyingContract: CONFIG.PAYMASTER_ADDRESS as Hex,
@@ -255,11 +226,11 @@ const handleSponsor = async (req: express.Request, res: express.Response) => {
 
         const message = {
             feeToken,
-            feeAmount,
+            feeAmount: feeAmountToSign, // Signing REAL cost
             receiver,
             validUntil,
             validAfter,
-            payer // Replaces or adds to sender. In V2 we use 'payer' as the last field.
+            payer
         };
 
         const typesWithPayer = {
@@ -281,26 +252,24 @@ const handleSponsor = async (req: express.Request, res: express.Response) => {
         });
 
         // 4. Encode paymasterAndData
-        // Format: paymasterAddress + abi.encode(feeToken, feeAmount, receiver, validUntil, validAfter, payer, signature)
-        // Note: Added 'payer' to encoding
         const encodedData = encodeAbiParameters(
             parseAbiParameters('address, uint256, address, uint48, uint48, address, bytes'),
-            [feeToken, feeAmount, receiver, validUntil, validAfter, payer, signature]
+            [feeToken, feeAmountToSign, receiver, validUntil, validAfter, payer, signature]
         );
 
         const paymasterAndData = `${CONFIG.PAYMASTER_ADDRESS}${encodedData.slice(2)}` as Hex;
 
         console.log(`[DEBUG SPONSOR] Generated paymasterAndData length: ${paymasterAndData.length}`);
         console.log(`[DEBUG SPONSOR] Signature: ${signature}`);
-        console.log(`[DEBUG SPONSOR] ValidUntil: ${validUntil}`);
-        console.log(`[DEBUG SPONSOR] FeeAmount: ${feeAmount}`);
+        console.log(`[DEBUG SPONSOR] FeeAmountSigned (Real): ${feeAmountToSign}`);
+        console.log(`[DEBUG SPONSOR] FeeAmountCharged (Est): ${radrsFee}`);
 
         // Return standardized response for frontend
         res.json({
             paymasterAndData,
-            fee: radrsFee, // Standardized as string
+            fee: radrsFee, // Frontend sees the final fee (0 or 1.2x)
             validUntil,
-            radrsFee: radrsFee, // Keep for backward compatibility
+            radrsFee: radrsFee, 
             gasCostBNB
         });
 
@@ -323,7 +292,7 @@ app.post('/paymaster/sponsor', handleSponsor);
 
 app.listen(Number(CONFIG.PORT), '0.0.0.0', () => {
     console.log(`Paymaster Service running on port ${CONFIG.PORT} (0.0.0.0)`);
-    console.log(`Paymaster Address (Config): ${CONFIG.PAYMASTER_ADDRESS}`);
+    console.log(`[RADRS Paymaster] Using PAYMASTER_ADDRESS: ${CONFIG.PAYMASTER_ADDRESS}`);
 });
 
 // Vercel Serverless Export
