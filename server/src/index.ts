@@ -16,10 +16,13 @@ try {
 
 import express from 'express';
 import cors from 'cors';
-import { CONFIG } from './config.js';
+import { CONFIG } from './config.ts'; // Ensure we keep .js extension for ESM resolution in some setups, but usually ts-node handles it. 
+// If it fails after deleting .js files, we might need to remove .js extension or configure ts-node.
+// Let's try removing .js extension first as we are in ts-node context.
 import { createPublicClient, http, hexToBigInt, encodeAbiParameters, parseAbiParameters, type Hex, type LocalAccount, createWalletClient, decodeFunctionData, parseAbi, isAddressEqual, getAddress } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { bsc } from 'viem/chains';
+import axios from 'axios'; // For price fetching
 
 const app = express();
 app.use(cors());
@@ -31,6 +34,37 @@ const publicClient = createPublicClient({
     transport: http(CONFIG.RPC_URL)
 });
 
+// Price Cache
+let cachedPrice = {
+    price: 0,
+    timestamp: 0
+};
+
+// Function to fetch real-time BNB Price
+async function getBNBPrice(): Promise<number> {
+    const now = Date.now();
+    // Cache for 60 seconds
+    if (cachedPrice.price > 0 && (now - cachedPrice.timestamp) < 60000) {
+        return cachedPrice.price;
+    }
+
+    try {
+        console.log("Fetching real-time BNB price...");
+        // Use Binance Public API or CoinGecko
+        const response = await axios.get('https://api.binance.com/api/v3/ticker/price?symbol=BNBUSDT');
+        if (response.data && response.data.price) {
+            const price = parseFloat(response.data.price);
+            cachedPrice = { price, timestamp: now };
+            console.log(`Updated BNB Price: $${price}`);
+            return price;
+        }
+    } catch (e) {
+        console.error("Failed to fetch BNB price, using fallback:", e);
+    }
+    
+    return 650; // Fallback to $650 if API fails
+}
+
 // Setup Signer
 let signer: LocalAccount;
 if (CONFIG.PAYMASTER_SIGNER_KEY) {
@@ -40,11 +74,28 @@ if (CONFIG.PAYMASTER_SIGNER_KEY) {
     console.warn("WARNING: PAYMASTER_SIGNER_KEY not set. Sponsor signing will fail.");
 }
 
-// Async wrapper to fetch activation status
-async function checkActivation(sender: Hex): Promise<boolean> {
-    try {
-        const isActivated = await publicClient.readContract({
-            address: CONFIG.PAYMASTER_ADDRESS as Hex,
+// Safe Address Helper
+    const safeAddress = (addr: any): `0x${string}` => {
+        try {
+            return getAddress(addr);
+        } catch {
+            // If validation fails (e.g. undefined, null, invalid hex), return a fallback or throw a clean error
+            // For sender/payer, we might want to throw if it's critical, or return a zero address if optional
+            // But getAddress throwing is usually what we want, just cleaner.
+            // Let's return a Zero Address if invalid to prevent crash, but log warning.
+            console.warn(`[WARNING] Invalid address: ${addr}, defaulting to Zero Address`);
+            return "0x0000000000000000000000000000000000000000"; 
+        }
+    };
+
+    // Async wrapper to fetch activation status
+    async function checkActivation(sender: any): Promise<boolean> {
+        try {
+            const validSender = safeAddress(sender);
+            if (validSender === "0x0000000000000000000000000000000000000000") return true; // Default to charged if invalid
+
+            const isActivated = await publicClient.readContract({
+                address: CONFIG.PAYMASTER_ADDRESS as Hex,
             abi: [{
                 type: 'function',
                 name: 'isActivated',
@@ -62,21 +113,99 @@ async function checkActivation(sender: Hex): Promise<boolean> {
     }
 }
 
+// Function to fetch real-time RADRS Price from PancakeSwap (via DexScreener or similar API)
+async function getRadrsPrice(): Promise<number> {
+    const now = Date.now();
+    // Use separate cache key logic if needed, or simple var
+    // Let's implement a simple cache for RADRS too
+    // Note: Reusing cachedPrice object structure for simplicity or create new one.
+    // Let's make a new cache object for RADRS
+    if (global.cachedRadrsPrice && (now - global.cachedRadrsPrice.timestamp) < 60000) {
+        return global.cachedRadrsPrice.price;
+    }
+
+    try {
+        console.log("Fetching real-time RADRS price from PancakeSwap/DexScreener...");
+        // DexScreener API is free and reliable for PancakeSwap tokens
+        const pairAddress = CONFIG.RADRS_TOKEN_ADDRESS; // Usually token address works for search
+        const response = await axios.get(`https://api.dexscreener.com/latest/dex/tokens/${CONFIG.RADRS_TOKEN_ADDRESS}`);
+        
+        if (response.data && response.data.pairs && response.data.pairs.length > 0) {
+            // Find the pair on BSC (chainId: 56 or 'bsc')
+            const pair = response.data.pairs.find((p: any) => p.chainId === 'bsc' && p.dexId === 'pancakeswap');
+            if (pair) {
+                const price = parseFloat(pair.priceUsd);
+                global.cachedRadrsPrice = { price, timestamp: now };
+                console.log(`Updated RADRS Price: $${price}`);
+                return price;
+            }
+        }
+        console.warn("Could not find RADRS price on DexScreener, using fallback.");
+    } catch (e) {
+        console.error("Failed to fetch RADRS price:", e);
+    }
+    
+    return 2.17; // Fallback to fixed price
+}
+
+// Global cache for RADRS (since I can't easily add top-level var with search-replace in middle of file)
+declare global {
+    var cachedRadrsPrice: { price: number, timestamp: number };
+}
+
 // Updated calculateFees to accept activation status
 async function calculateFeesAsync(userOp: any) {
     const { callGasLimit, verificationGasLimit, preVerificationGas, maxFeePerGas } = userOp;
     
-    const cgl = callGasLimit ? hexToBigInt(callGasLimit) : 0n;
-    const vgl = verificationGasLimit ? hexToBigInt(verificationGasLimit) : 0n;
-    const pvg = preVerificationGas ? hexToBigInt(preVerificationGas) : 0n;
-    const mfg = maxFeePerGas ? hexToBigInt(maxFeePerGas) : 0n;
+    // Safe BigInt Helper
+    const safeBigInt = (val: any, defaultVal: bigint = 0n): bigint => {
+        if (!val || val === "0x") return defaultVal;
+        try {
+            return hexToBigInt(val);
+        } catch {
+            try {
+                return BigInt(val);
+            } catch {
+                return defaultVal;
+            }
+        }
+    };
 
-    const totalGasLimit = cgl + vgl + pvg;
+    const cgl = safeBigInt(callGasLimit);
+    const vgl = safeBigInt(verificationGasLimit);
+    const pvg = safeBigInt(preVerificationGas);
+    const mfg = safeBigInt(maxFeePerGas);
+
+    // --- FEE OPTIMIZATION ---
+    // Cap the gas limits used for FEE CALCULATION to prevent overcharging.
+    // The actual execution will still use the high limits from the UserOp for safety.
+    // Caps: CGL 250k (Transfer~30k), VGL 200k (ECDSA~80k), PVG 100k (Base~50k)
+    const CGL_CAP = 250000n;
+    const VGL_CAP = 200000n;
+    const PVG_CAP = 100000n;
+
+    const cglForFee = cgl > CGL_CAP ? CGL_CAP : cgl;
+    const vglForFee = vgl > VGL_CAP ? VGL_CAP : vgl;
+    const pvgForFee = pvg > PVG_CAP ? PVG_CAP : pvg;
+
+    const totalGasLimit = cglForFee + vglForFee + pvgForFee;
     const gasCostBNBWei = totalGasLimit * mfg;
+    // Prevent division by zero or invalid math
     const gasCostBNB = Number(gasCostBNBWei) / 1e18;
 
+    // Fetch Real-time BNB Price
+    const bnbPrice = await getBNBPrice();
+    // Fetch Real-time RADRS Price (PancakeSwap via DexScreener)
+    const radrsPriceUsd = await getRadrsPrice();
+    
+    // Calculate Price Ratio: 1 RADRS = (RADRS_PRICE / BNB_PRICE) BNB
+    const priceRadrsBnb = radrsPriceUsd / bnbPrice;
+    
     // Base RADRS Cost (Real Cost)
-    let realRadrsCostRaw = (gasCostBNB / CONFIG.PRICE_RADRS_BNB);
+    // let realRadrsCostRaw = (gasCostBNB / priceRadrsBnb);
+    
+    // Simplified: (GasCostBNB * BNB_Price) / RADRS_Price
+    let realRadrsCostRaw = (gasCostBNB * bnbPrice) / radrsPriceUsd;
     
     // Check Activation
     const isActivated = await checkActivation(userOp.sender as Hex);
@@ -90,14 +219,29 @@ async function calculateFeesAsync(userOp: any) {
     } else {
         // Charged at Markup (e.g. 1.2x)
         // RADRS_SERVICE_FEE_BPS = 2000 => 20% => 1.2x
-        const markup = 1 + (CONFIG.RADRS_SERVICE_FEE_BPS / 10000);
+        const bps = Number(CONFIG.RADRS_SERVICE_FEE_BPS) || 2000;
+        const markup = 1 + (bps / 10000);
         finalRadrsFeeRaw = realRadrsCostRaw * markup;
         console.log(`[Fee] User ${userOp.sender} activated -> Charged ${markup}x`);
     }
 
+    // Safe conversion for final values
+    const toSafeWei = (val: number): bigint => {
+        if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) {
+             console.warn(`[WARNING] Value is NaN or Infinity: ${val}, defaulting to 0n`);
+             return 0n;
+        }
+        try {
+            return BigInt(Math.floor(val * 1e18));
+        } catch (e) {
+            console.error(`[ERROR] BigInt conversion failed for ${val}`, e);
+            return 0n;
+        }
+    }
+
     // Convert to BigInt Wei
-    const realRadrsCostWei = BigInt(Math.floor(realRadrsCostRaw * 1e18));
-    const finalRadrsFeeWei = BigInt(Math.floor(finalRadrsFeeRaw * 1e18));
+    const realRadrsCostWei = toSafeWei(realRadrsCostRaw);
+    const finalRadrsFeeWei = toSafeWei(finalRadrsFeeRaw);
 
     return {
         gasCostBNB: gasCostBNB.toFixed(6),
@@ -118,7 +262,11 @@ const handleQuote = async (req: express.Request, res: express.Response) => {
         }
 
         const fees = await calculateFeesAsync(userOp);
-        res.json(fees);
+        // Include paymasterAddress in quote response for verification
+        res.json({
+            ...fees,
+            paymasterAddress: CONFIG.PAYMASTER_ADDRESS
+        });
     } catch (error: any) {
         console.error("Quote Error:", error);
         res.status(500).json({ error: error.message });
@@ -198,23 +346,27 @@ const handleSponsor = async (req: express.Request, res: express.Response) => {
         // 2. Prepare Sponsor Data
         const validUntil = Math.floor(Date.now() / 1000) + 3600; // 1 Hour
         const validAfter = 0;
-        const feeToken = getAddress(CONFIG.RADRS_TOKEN_ADDRESS);
         
-        // IMPORTANT: We now sign the REAL cost (base cost), not the final fee.
-        // The contract will apply the markup logic based on activation status.
-        // Wait, Paymaster V3 implementation:
-        // "We will sign: (feeToken, realRadrsCost, receiver, validUntil, validAfter, payer)"
-        // "Check Balance... require(balance >= chargeAmount)" -> chargeAmount depends on isActivated
-        // So we sign 'realRadrsCost'.
+        console.log(`[DEBUG] FeeToken Raw: ${CONFIG.RADRS_TOKEN_ADDRESS}`);
+        console.log(`[DEBUG] Receiver Raw: ${CONFIG.RADRS_FEE_COLLECTOR}`);
+        
+        // Use safeAddress to prevent "undefined" string crash
+        const feeToken = safeAddress(CONFIG.RADRS_TOKEN_ADDRESS);
+        const receiver = safeAddress(CONFIG.RADRS_FEE_COLLECTOR); 
+        
+        if (feeToken === "0x0000000000000000000000000000000000000000" || receiver === "0x0000000000000000000000000000000000000000") {
+             console.error("[CRITICAL] FeeToken or Receiver address is invalid (ZeroAddress). Check CONFIG.");
+        }
         
         const feeAmountToSign = BigInt(realRadrsCost); 
-        
-        const receiver = getAddress(CONFIG.RADRS_FEE_COLLECTOR); // Updated to Collector
-        const sender = getAddress(userOp.sender);
+        const sender = safeAddress(userOp.sender);
         
         // Payer Logic
         const payerInput = req.body.payer;
-        const payer = payerInput ? getAddress(payerInput) : sender;
+        // If payer is undefined/null/empty, fallback to sender.
+        // If payer is provided but invalid, safeAddress will warn and return ZeroAddress, 
+        // effectively making the signature invalid (which is better than 500 crash).
+        const payer = (payerInput && payerInput !== "0x") ? safeAddress(payerInput) : sender;
 
         // 3. EIP-712 Signing
         const domain = {
@@ -260,6 +412,7 @@ const handleSponsor = async (req: express.Request, res: express.Response) => {
         const paymasterAndData = `${CONFIG.PAYMASTER_ADDRESS}${encodedData.slice(2)}` as Hex;
 
         console.log(`[DEBUG SPONSOR] Generated paymasterAndData length: ${paymasterAndData.length}`);
+        console.log(`[DEBUG SPONSOR] Using Paymaster Address: ${CONFIG.PAYMASTER_ADDRESS}`);
         console.log(`[DEBUG SPONSOR] Signature: ${signature}`);
         console.log(`[DEBUG SPONSOR] FeeAmountSigned (Real): ${feeAmountToSign}`);
         console.log(`[DEBUG SPONSOR] FeeAmountCharged (Est): ${radrsFee}`);
@@ -267,6 +420,7 @@ const handleSponsor = async (req: express.Request, res: express.Response) => {
         // Return standardized response for frontend
         res.json({
             paymasterAndData,
+            paymasterAddress: CONFIG.PAYMASTER_ADDRESS, // Send back address for verification
             fee: radrsFee, // Frontend sees the final fee (0 or 1.2x)
             validUntil,
             radrsFee: radrsFee, 

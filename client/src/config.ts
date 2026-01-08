@@ -21,12 +21,12 @@ export const BUNDLER_URL = process.env.EXPO_PUBLIC_BUNDLER_URL || (usePublicBund
 console.log("[Config] Using Bundler:", BUNDLER_URL);
 
 // RadrsPaymaster Deployed Address (Verified)
-// FORCE HARDCODED ADDRESS TO AVOID CACHE ISSUES
-export const PAYMASTER_ADDRESS = "0x1d3E64c5a4fFfC4e46e70e22c33A1ddaD506c3Aa"; // v2: White-listed Approve
+export const PAYMASTER_ADDRESS = process.env.EXPO_PUBLIC_PAYMASTER_ADDRESS || "0x74A0d7235747D9Ae98BA1dB6f0306Bf57a14cb3A"; // v3: New Paymaster with Funds
 
 // Backend API URL
 // Ensure this points to Vercel, NOT localhost
-export const PAYMASTER_API_URL = "https://radrs-paymaster.vercel.app";
+// export const PAYMASTER_API_URL = "https://radrs-paymaster.vercel.app";
+export const PAYMASTER_API_URL = process.env.EXPO_PUBLIC_PAYMASTER_API_URL || "http://localhost:3000"; // Debugging locally first
 
 export const RADRS_TOKEN_ADDRESS = "0xe2188a2e0a41a50f09359e5fe714d5e643036f2a";
 
