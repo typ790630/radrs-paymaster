@@ -16,7 +16,7 @@ try {
 
 import express from 'express';
 import cors from 'cors';
-import { CONFIG } from './config.ts'; // Ensure we keep .js extension for ESM resolution in some setups, but usually ts-node handles it. 
+import { CONFIG } from './config.js'; // Ensure we keep .js extension for ESM resolution in some setups, but usually ts-node handles it. 
 // If it fails after deleting .js files, we might need to remove .js extension or configure ts-node.
 // Let's try removing .js extension first as we are in ts-node context.
 import { createPublicClient, http, hexToBigInt, encodeAbiParameters, parseAbiParameters, type Hex, type LocalAccount, createWalletClient, decodeFunctionData, parseAbi, isAddressEqual, getAddress } from 'viem';

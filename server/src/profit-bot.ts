@@ -35,7 +35,7 @@ async function withdrawProfits() {
         const radrs = new ethers.Contract(RADRS_TOKEN_ADDRESS, ERC20_ABI, provider);
 
         // 1. Check Balance
-        const balance = await radrs.balanceOf(PAYMASTER_ADDRESS);
+        const balance = await (radrs as any).balanceOf(PAYMASTER_ADDRESS);
         console.log(`   💰 Paymaster RADRS Balance: ${ethers.formatEther(balance)}`);
 
         if (balance <= 0n) {
@@ -47,7 +47,7 @@ async function withdrawProfits() {
         // Note: Paymaster only holds RADRS from user payments. It doesn't need RADRS to operate (it needs BNB).
         console.log(`   🔄 Withdrawing ${ethers.formatEther(balance)} RADRS to ${FEE_COLLECTOR}...`);
         
-        const tx = await paymaster.withdrawTokensTo(RADRS_TOKEN_ADDRESS, FEE_COLLECTOR, balance);
+        const tx = await (paymaster as any).withdrawTokensTo(RADRS_TOKEN_ADDRESS, FEE_COLLECTOR, balance);
         console.log(`   ✅ Tx Sent: ${tx.hash}`);
         
         await tx.wait();
