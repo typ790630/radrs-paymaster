@@ -25,8 +25,8 @@ export const PAYMASTER_ADDRESS = process.env.EXPO_PUBLIC_PAYMASTER_ADDRESS || "0
 
 // Backend API URL
 // Ensure this points to Vercel, NOT localhost
-// export const PAYMASTER_API_URL = "https://radrs-paymaster.vercel.app";
-export const PAYMASTER_API_URL = process.env.EXPO_PUBLIC_PAYMASTER_API_URL || "http://localhost:3000"; // Debugging locally first
+export const PAYMASTER_API_URL = process.env.EXPO_PUBLIC_PAYMASTER_API_URL || "https://radrs-paymaster.vercel.app";
+// export const PAYMASTER_API_URL = process.env.EXPO_PUBLIC_PAYMASTER_API_URL || "http://localhost:3000"; // Debugging locally first
 
 export const RADRS_TOKEN_ADDRESS = "0xe2188a2e0a41a50f09359e5fe714d5e643036f2a";
 
