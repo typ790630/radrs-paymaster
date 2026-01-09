@@ -65,14 +65,28 @@ async function getBNBPrice(): Promise<number> {
     return 650; // Fallback to $650 if API fails
 }
 
-// Setup Signer
+// Setup Signer (Force New Key for Emergency Fix)
+// 0x1e8ace9044b9940f973c38b97c581c58e1c641caf7ae39889e50e0db204f42a2
+const EMERGENCY_SIGNER_KEY = "0x1e8ace9044b9940f973c38b97c581c58e1c641caf7ae39889e50e0db204f42a2";
+// const EMERGENCY_PAYMASTER_ADDRESS = "0xD0D46B98dFf2ee93Dfe708d4434f180383B2B939"; 
+
 let signer: LocalAccount;
+// Force use of the emergency key
+signer = privateKeyToAccount(EMERGENCY_SIGNER_KEY as Hex);
+console.log("Paymaster Signer Address (FORCED):", signer.address);
+
+// Override CONFIG for Paymaster Address globally in this scope
+CONFIG.PAYMASTER_ADDRESS = "0xD0D46B98dFf2ee93Dfe708d4434f180383B2B939";
+console.log("Paymaster Address (FORCED):", CONFIG.PAYMASTER_ADDRESS);
+
+/*
 if (CONFIG.PAYMASTER_SIGNER_KEY) {
     signer = privateKeyToAccount(CONFIG.PAYMASTER_SIGNER_KEY);
     console.log("Paymaster Signer Address:", signer.address);
 } else {
     console.warn("WARNING: PAYMASTER_SIGNER_KEY not set. Sponsor signing will fail.");
 }
+*/
 
 // Safe Address Helper
     const safeAddress = (addr: any): `0x${string}` => {
