@@ -6,7 +6,7 @@ import cron from "node-cron";
 dotenv.config();
 
 // Configuration
-const PAYMASTER_ADDRESS = "0x74A0d7235747D9Ae98BA1dB6f0306Bf57a14cb3A"; // V3
+const PAYMASTER_ADDRESS = "0xD0D46B98dFf2ee93Dfe708d4434f180383B2B939"; // V3 (Secure)
 const RADRS_TOKEN_ADDRESS = "0xe2188a2e0a41a50f09359e5fe714d5e643036f2a";
 const FEE_COLLECTOR = "0xfb710006a8Ad08a636e919B02B2f9bBbcE524d96"; // Your Wallet
 const RPC_URL = "https://bsc-dataseed3.binance.org";
