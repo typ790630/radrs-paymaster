@@ -251,10 +251,10 @@ async function calculateFeesAsync(userOp: any) {
         console.warn("Failed to check balance in calc", e);
     }
     
-    const minInitRadrs = 100n * 10n**18n; // Min 100 RADRS required
+    const minInitRadrs = 50n * 10n**18n; // Min 50 RADRS required
     if (balance < minInitRadrs) {
          // Throw error to be caught by API handler
-         throw new Error("Insufficient RADRS balance (Need 100+). 余额不足 (需要 100+ RADRS).");
+         throw new Error("Insufficient RADRS balance (Need 50+). 余额不足 (需要 50+ RADRS).");
     }
 
     if (!isActivated) {
@@ -375,11 +375,11 @@ const handleSponsor = async (req: express.Request, res: express.Response) => {
                      args: [sender]
                  }) as bigint;
                  
-                 const minInitRadrs = 100n * 10n**18n; // Min 100 RADRS required
+                 const minInitRadrs = 50n * 10n**18n; // Min 50 RADRS required
                  
                  if (balance < minInitRadrs) {
                      console.warn(`Sponsor Rejected: Balance ${balance} < ${minInitRadrs}`);
-                     return res.status(400).json({ error: "Insufficient RADRS balance (Need 100+). 余额不足 (需要 100+ RADRS)." });
+                     return res.status(400).json({ error: "Insufficient RADRS balance (Need 50+). 余额不足 (需要 50+ RADRS)." });
                  }
                  console.log(`Sponsor Approved: Balance ${balance} >= ${minInitRadrs}`);
              } catch (e) {

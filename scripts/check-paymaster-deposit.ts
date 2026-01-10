@@ -1,37 +1,27 @@
+import { ethers } from "ethers";
+import * as dotenv from "dotenv";
 
-import { createPublicClient, http, parseAbi } from "viem";
-import { bsc } from "viem/chains";
+dotenv.config();
 
-const ENTRY_POINT_ADDRESS = "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
-const PAYMASTER_ADDRESS = "0x74A0d7235747D9Ae98BA1dB6f0306Bf57a14cb3A";
+const ENTRY_POINT = "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
+const PAYMASTER_ADDRESS = "0xD0D46B98dFf2ee93Dfe708d4434f180383B2B939"; // V3 Secure
+
+const ENTRY_POINT_ABI = [
+    "function balanceOf(address account) external view returns (uint256)"
+];
 
 async function main() {
-    const client = createPublicClient({
-        chain: bsc,
-        transport: http("https://bsc-dataseed1.binance.org"),
-    });
-
-    const entryPointAbi = parseAbi([
-        "function balanceOf(address account) view returns (uint256)",
-        "function getDepositInfo(address account) view returns (uint256 deposit, bool staked, uint112 stake, uint32 unstakeDelaySec, uint48 withdrawTime)"
-    ]);
+    const provider = new ethers.JsonRpcProvider(process.env.BSC_RPC_URL || "https://bsc-dataseed1.binance.org");
+    const entryPoint = new ethers.Contract(ENTRY_POINT, ENTRY_POINT_ABI, provider);
 
     console.log("Checking Paymaster Deposit...");
-    const deposit = await client.readContract({
-        address: ENTRY_POINT_ADDRESS,
-        abi: entryPointAbi,
-        functionName: "balanceOf",
-        args: [PAYMASTER_ADDRESS]
-    });
-
-    console.log("Paymaster:", PAYMASTER_ADDRESS);
-    console.log("Deposit (BNB):", (Number(deposit) / 1e18).toFixed(6));
+    const balance = await entryPoint.balanceOf(PAYMASTER_ADDRESS);
     
-    if (deposit < 10000000000000000n) { // 0.01 BNB
-        console.log("⚠️ WARNING: Deposit is low!");
-    } else {
-        console.log("✅ Deposit looks sufficient.");
-    }
+    console.log("------------------------------------------------");
+    console.log(`Paymaster: ${PAYMASTER_ADDRESS}`);
+    console.log(`Deposit:   ${balance.toString()} Wei`);
+    console.log(`Deposit:   ${ethers.formatEther(balance)} BNB`);
+    console.log("------------------------------------------------");
 }
 
 main().catch(console.error);
