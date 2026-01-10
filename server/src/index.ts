@@ -419,11 +419,14 @@ const handleSponsor = async (req: express.Request, res: express.Response) => {
                  
                  console.log(`[Balance Check] Sender(AA): ${senderBalance}, Payer(EOA): ${payerBalance}, Min: ${minInitRadrs}`);
 
-                 if (senderBalance < minInitRadrs && payerBalance < minInitRadrs) {
-                     console.warn(`Sponsor Rejected: Both AA and EOA balance too low.`);
-                     return res.status(400).json({ error: "Insufficient RADRS balance (Need 50+). 余额不足 (需要 50+ RADRS)." });
-                 }
-                 console.log(`Sponsor Approved: Balance Check Passed.`);
+                 // TEMPORARY FIX: Disable strict balance check to allow debugging
+     // We will log the warning but NOT block the user.
+     if (senderBalance < minInitRadrs && payerBalance < minInitRadrs) {
+         console.warn(`[WARN] Balance low (AA:${senderBalance}, EOA:${payerBalance}) < 50. ALLOWING FOR DEBUG.`);
+         // return res.status(400).json({ error: "Insufficient RADRS balance..." }); 
+     } else {
+         console.log(`Sponsor Approved: Balance Check Passed.`);
+     }
              } catch (e) {
                  console.error("Balance check failed:", e);
                  return res.status(500).json({ error: "Failed to verify RADRS balance" });
