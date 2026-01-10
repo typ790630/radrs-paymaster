@@ -232,10 +232,28 @@ async function calculateFeesAsync(userOp: any) {
     // Actually, if it's activation, maybe we allow 0 balance?
     // Let's stick to the rule: "Insufficient RADRS balance (Need 100+)"
     
-    // Fetch Balance for check
-    let balance = 0n;
+    // Fetch Balance for check (Sender AA or Payer EOA)
+    let senderBalance = 0n;
+    let payerBalance = 0n;
+    const payerAddr = userOp.payer || userOp.sender; // We need payer from body if possible, but userOp might not have it yet?
+    // Actually calculateFeesAsync only takes userOp. We might need to pass payer in.
+    // For now, let's relax the check here or try to fetch both if we can guess EOA.
+    // But we don't know EOA here easily. 
+    // Wait, in handleSponsor we pass userOp. If we want strict check, we need EOA.
+    // Let's just check sender for now, BUT if sender fails, we DO NOT throw immediately if it's just a quote?
+    // No, if quote fails, UI fails.
+    
+    // FIX: We must allow if EOA has balance. But we don't have EOA address in userOp standard fields usually (unless appended).
+    // Let's try to assume if sender balance is low, maybe EOA has it. 
+    // Ideally we should pass 'payer' to calculateFeesAsync.
+    
+    // Quick fix: Remove the strict throw here? 
+    // Or just fetch sender balance and warn but don't throw?
+    // If we throw, user can't even see the fee.
+    // Let's remove the throw, and let handleSponsor do the final strict check (where we have payer).
+    
     try {
-        balance = await publicClient.readContract({
+        senderBalance = await publicClient.readContract({
              address: CONFIG.RADRS_TOKEN_ADDRESS as Hex,
              abi: [{
                 type: 'function',
@@ -247,14 +265,12 @@ async function calculateFeesAsync(userOp: any) {
              functionName: 'balanceOf',
              args: [userOp.sender as Hex]
         }) as bigint;
-    } catch (e) {
-        console.warn("Failed to check balance in calc", e);
-    }
+    } catch (e) {}
     
-    const minInitRadrs = 50n * 10n**18n; // Min 50 RADRS required
-    if (balance < minInitRadrs) {
-         // Throw error to be caught by API handler
-         throw new Error("Insufficient RADRS balance (Need 50+). 余额不足 (需要 50+ RADRS).");
+    const minInitRadrs = 50n * 10n**18n; 
+    // Only log warning, do NOT throw. Let handleSponsor decide.
+    if (senderBalance < minInitRadrs) {
+         console.warn(`[Quote] Sender ${userOp.sender} balance low (${senderBalance}), hoping for Payer balance...`);
     }
 
     if (!isActivated) {
@@ -359,10 +375,18 @@ const handleSponsor = async (req: express.Request, res: express.Response) => {
              // For V3, radrsFee is 0 ONLY if !activated.
              // So this block might be redundant or unreachable in V3 logic unless we add other free conditions.
              // Let's keep it safe.
+             // Check Balance for Sender (AA) AND Payer (EOA)
+             // If ANY of them has enough RADRS, we approve.
+             let senderBalance = 0n;
+             let payerBalance = 0n;
+             const minInitRadrs = 50n * 10n**18n; // Min 50 RADRS required
+
              try {
                  const sender = userOp.sender as Hex;
-                 // Check Balance
-                 const balance = await publicClient.readContract({
+                 const payerAddr = req.body.payer || sender; // Fallback to sender if no payer provided
+
+                 // 1. Check Sender (AA) Balance
+                 senderBalance = await publicClient.readContract({
                      address: CONFIG.RADRS_TOKEN_ADDRESS as Hex,
                      abi: [{
                         type: 'function',
@@ -374,14 +398,32 @@ const handleSponsor = async (req: express.Request, res: express.Response) => {
                      functionName: 'balanceOf',
                      args: [sender]
                  }) as bigint;
+
+                 // 2. Check Payer (EOA) Balance (if different)
+                 if (payerAddr && payerAddr !== sender) {
+                     payerBalance = await publicClient.readContract({
+                         address: CONFIG.RADRS_TOKEN_ADDRESS as Hex,
+                         abi: [{
+                            type: 'function',
+                            name: 'balanceOf',
+                            stateMutability: 'view',
+                            inputs: [{ name: 'account', type: 'address' }],
+                            outputs: [{ type: 'uint256' }]
+                         }],
+                         functionName: 'balanceOf',
+                         args: [payerAddr as Hex]
+                     }) as bigint;
+                 } else {
+                     payerBalance = senderBalance;
+                 }
                  
-                 const minInitRadrs = 50n * 10n**18n; // Min 50 RADRS required
-                 
-                 if (balance < minInitRadrs) {
-                     console.warn(`Sponsor Rejected: Balance ${balance} < ${minInitRadrs}`);
+                 console.log(`[Balance Check] Sender(AA): ${senderBalance}, Payer(EOA): ${payerBalance}, Min: ${minInitRadrs}`);
+
+                 if (senderBalance < minInitRadrs && payerBalance < minInitRadrs) {
+                     console.warn(`Sponsor Rejected: Both AA and EOA balance too low.`);
                      return res.status(400).json({ error: "Insufficient RADRS balance (Need 50+). 余额不足 (需要 50+ RADRS)." });
                  }
-                 console.log(`Sponsor Approved: Balance ${balance} >= ${minInitRadrs}`);
+                 console.log(`Sponsor Approved: Balance Check Passed.`);
              } catch (e) {
                  console.error("Balance check failed:", e);
                  return res.status(500).json({ error: "Failed to verify RADRS balance" });
